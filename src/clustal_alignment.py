@@ -17,44 +17,6 @@ import numpy as np
 import pandas as pd
 
 
-def distance_calculate_bis(dist_seq1_seq2, r1, r2, N):
-    return (dist_seq1_seq2 - (r1+r2)) / (N-2)
-
-
-def distance_calculate(dist_matrix):
-    dist_dict = dict()
-    # d*(S1, S2) = d(S1, S2) - (R1+R2) / (N-2)
-
-
-def neighbor_joining():
-    """_summary_
-    
-    Parameters
-    ----------
-    
-    Return
-    ------
-    
-    """
-    
-    # lire le csv / mat de dist
-    # with open("matrice_distance_NJ.csv", 'r') as distance_matrix:
-    #     print(distance_matrix.read())
-    distance_matrix = pd.read_csv("matrice_distance_NJ.csv", index_col=0)
-    print(distance_matrix)
-    # print(distance_matrix.dtypes)
-    
-    
-    for i in distance_matrix:
-        pass
-    # boucle 
-    #   - calcul dist entre chaque seq : deux à deux 
-    #   - fusionner les seq qui ont la dist min : seq-fus
-    #   - calcul long des branches entre les seq de dist min avec leur racine
-    #   - calcul dist inter-groupe entre seq-fus et les autres seq (les autres val de ma mat reste les memes)
-    pass
-
-
 def decompose_tuple(t):
     """
     Décompose récursivement un tuple et retourne tous les éléments sous forme de liste.
@@ -73,6 +35,11 @@ def decompose_tuple(t):
     
     recursive_decompose(t)
     return result
+
+
+# def calc_distance(distance_matrix, list_nom_col_min):
+#     if list_nom_col_min 
+
 
 
 def upgma():
@@ -98,6 +65,11 @@ def upgma():
         
         for i in name_column:
             if i not in [row, col]:
+                print(row, col, i)
+                # print(distance_matrix.columns)
+                # print(distance_matrix.index)
+                # print(distance_matrix.loc[i, col])
+                # print(distance_matrix.loc[col, i])
                 # faire ce cal de distance entre i et chaque elmt de list_nom_col_min : donc pe ne pas supp les col maintenant
                 distance = (distance_matrix.loc[row, i] + distance_matrix.loc[col, i])/len(list_nom_col_min)
                 new_distance_seq_fusion.append(distance)
@@ -106,7 +78,8 @@ def upgma():
         distance_matrix = distance_matrix.drop(index=[row, col])
         distance_matrix = distance_matrix.drop(columns=[row, col])
         
-        distance_matrix[index_min] = new_distance_seq_fusion
+        # distance_matrix[index_min] = new_distance_seq_fusion
+        distance_matrix = pd.concat([new_distance_seq_fusion, distance_matrix])
         print(distance_matrix)
     
     print(dist_dict)
@@ -126,6 +99,74 @@ def upgma():
     # recalculer dist entre seq-fus et les autres seq
 
 
+
+
+def embranchement_sucessif():
+    dist_dict = dict()
+
+    # lire mat dist
+    distance_matrix = pd.read_csv("matrice_dist_UPGMA.csv", index_col=0)
+    print(distance_matrix)
+
+    # chercher le min
+    val_min = distance_matrix.min(skipna=True).min()
+    index_min = distance_matrix.stack().idxmin()
+    dist_dict[index_min] = val_min
+    print(dist_dict)
+
+    row, col = index_min
+    print(row, col)
+    list_nom_col_min = decompose_tuple(index_min)
+    name_column = distance_matrix.columns
+    new_distance_seq_fusion = []
+    for i in name_column:
+        if i not in [row, col]:
+            # faire ce cal de distance entre i et chaque elmt de list_nom_col_min : donc pe ne pas supp les col maintenant
+            distance = (distance_matrix.loc[row, i] + distance_matrix.loc[col, i])/len(list_nom_col_min)
+            new_distance_seq_fusion.append(distance)
+    
+    distance_matrix = distance_matrix.drop(index=[row, col])
+    distance_matrix = distance_matrix.drop(columns=[row, col])
+
+    distance_matrix[f"{index_min}"] = new_distance_seq_fusion
+    print(distance_matrix)
+
+    #récup la val min de la colone fusion1
+    val_min = distance_matrix[str(index_min)].min()
+    print(val_min)
+    #ici récup que le nom de la ligne comme je connais celui de la colonne
+    index_min_2 = distance_matrix[distance_matrix[index_min]==val_min].index.to_list()
+    print("index_min", index_min_2)
+
+    dist_dict[(index_min, index_min_2[0])] = val_min
+    print(dist_dict)
+
+    # resultats = distance_matrix.stack().reset_index()
+    # resultats_filtrés = resultats[resultats[0] == val_min]
+    # print(type(resultats_filtrés))
+
+    # resultats_tuples = [(index, col) for col in distance_matrix.columns for index in distance_matrix.index if distance_matrix.at[index, col] == val_min]
+    # print(resultats_tuples)
+
+    # print(distance_matrix[val_min].stack())
+
+    #calcul dist2
+    print(distance_matrix.columns)
+    for i in distance_matrix.columns:
+        if i not in dist_dict.keys():
+            print(i)
+            distance = (distance_matrix.loc[row, str(i)] + 2*distance_matrix.loc[col, str(i)])/len(list_nom_col_min)
+            new_distance_seq_fusion.append(distance)
+
+    distance_matrix[index_min] = new_distance_seq_fusion
+    print(distance_matrix)
+
+
+
+
+
+
 if __name__ == "__main__":
     # neighbor_joining()
-    upgma()
+    # upgma()
+    embranchement_sucessif()
