@@ -16,3 +16,4 @@ dependencies:
     - pylint
     - black
     - ruff
+    - loguru
