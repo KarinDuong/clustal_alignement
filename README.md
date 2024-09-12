@@ -21,8 +21,19 @@ conda activate clustal_env
 ```
 
 ## Usage as command line tool
-Run Clustal on a test file
+Run clustal_alignment on a test file
 ```
-python [nom fichier]
+python src/clustal_alignment.py --input [FASTA filename]
 ```
+
+Run clustal_alignment on a test file, with a different gap score value. By default set at -8.0.
+```
+python src/clustal_alignment.py --input [FASTA filename] --gap_score [float value]
+```
+
+Run clustal_alignment on a test file, with the information of the sequence type in the input file. By default set True for protein sequence.
+```
+python src/clustal_alignment.py --input [FASTA filename] --gap_score [float value] --protein_sequence [boolean value]
+```
+
 

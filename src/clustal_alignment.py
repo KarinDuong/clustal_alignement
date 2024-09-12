@@ -18,31 +18,57 @@ from Bio import SeqIO
 import numpy as np
 from pathlib import Path
 import pandas as pd
-import sys
+
 
 # https://github.com/dmnfarrell/epitopepredict/blob/master/epitopepredict/mhcdata/blosum62.csv
-BLOSSUM_MATRIX = pd.read_csv("blosum62.csv", index_col=0)
+BLOSSUM_MATRIX = pd.read_csv("data/blosum62.csv", index_col=0)
+
+# Source
+MATRICE_AN = 0
 
 
 def extract_sequence_from_fasta(fasta_filename: str, dict_name_seq: dict)-> None:
+    """Extract all sequences from the input FASTA file, and store them in a dictionnary.
+    
+    Parameters
+    ----------
+        fasta_filename: str
+            FASTA filename
+        dict_name_seq: dict
+            Dictionary to store sequences extracted as value, and sequence name as key.
+    """
     records = SeqIO.parse(fasta_filename, "fasta")
     for rec in records:
         dict_name_seq[str(rec.name)] = str(rec.seq)
     
 
-def needleman_wunsch(seq1: str, seq2: str, gap_score: float = -8.0) -> tuple[str, str, float]:
-    """_summary_
+def needleman_wunsch(seq1: str, seq2: str, gap_score: float, protein_sequence: bool) -> tuple[str, str, float]:
+    """Perform pairwise alignment between seq1 and seq2 to find the optimal alignment between theses sequences.
     
     Parameters
     ----------
         seq1: str
+            Sequence use in X axis for the alignment.
         seq2: str
+            Sequence use in Y axis for the alignment.
         gap_score: float
-    
+            Gap score value to calculate and set a value for each case.
+        protein_sequence: bool
+            Inform the sequence type, to use a appropriate subtitution matrix.
     Return
     ------
+        str
+            Aligned sequence of seq1, after the optimal alignment was set.
+        str
+            Aligned sequence of seq2, after the optimal alignment was set.
+        float
+            Score of the optimal alignment between seq1 and seq2.
+    """
+    if protein_sequence:
+        SUB_MATRIX = BLOSSUM_MATRIX
+    else:
+        SUB_MATRIX = MATRICE_AN
     
-    """    
     matrix_NW = np.zeros((len(seq1)+1, len(seq2)+1))
     matrix_backtracking = np.full((len(seq1)+1, len(seq2)+1), '', dtype=str)
 
@@ -54,10 +80,10 @@ def needleman_wunsch(seq1: str, seq2: str, gap_score: float = -8.0) -> tuple[str
     for j in range(1,nb_col):
         matrix_NW[0,j] = matrix_NW[0, j-1] + gap_score
     
-    # fill matrix_score
+    # fill matrix_score and the backtracking amtrix
     for i in range(1, nb_row):
         for j in range(1, nb_col):
-            diag_case = matrix_NW[i-1, j-1] + BLOSSUM_MATRIX.loc[seq1[i-1], seq2[j-1]]
+            diag_case = matrix_NW[i-1, j-1] + SUB_MATRIX.loc[seq1[i-1], seq2[j-1]]
             left_case = matrix_NW[i, j-1] + (gap_score)
             top_case = matrix_NW[i-1, j] + (gap_score)
             
@@ -70,7 +96,7 @@ def needleman_wunsch(seq1: str, seq2: str, gap_score: float = -8.0) -> tuple[str
                 matrix_backtracking[i, j] = "haut"
             matrix_NW[i, j] = max_value
         
-    # backtracking
+    # backtracking to collect the optimal alignment
     seq1_align, seq2_align = "", ""
     i, j = nb_row-1, nb_col-1
     score = matrix_NW[i, j]
@@ -92,7 +118,6 @@ def needleman_wunsch(seq1: str, seq2: str, gap_score: float = -8.0) -> tuple[str
         else:
             break
         
-    # print(f"{seq1_align[::-1]}\n{seq2_align[::-1]}\n{score}")
     return (seq1_align[::-1], seq2_align[::-1], score)
 
 
@@ -123,7 +148,7 @@ def search_min_ligne_index(matrix: pd.DataFrame, line_name:str=None) -> tuple[fl
 
 
 def calc_dist(matrix: pd.DataFrame, row_col: str, dict_dist: dict) -> tuple[str, pd.DataFrame]:
-    """Caculate the new distance value between a specific line and column with all the other sequence.
+    """Calculate the new distance value between a specific line and column with all the other sequence.
     
     Parameters
     ----------
@@ -169,10 +194,9 @@ def calc_dist(matrix: pd.DataFrame, row_col: str, dict_dist: dict) -> tuple[str,
     matrix = matrix.drop(columns=[col, row])
     
     if len(name_col_matrix) > 2:
-        matrix.loc[new_row_col] = new_dist_list # avec loc : cherche dans les lignes
-        matrix[new_row_col]=[np.nan] * len(matrix) # sans loc : cherche sur les colonnes
+        matrix.loc[new_row_col] = new_dist_list
+        matrix[new_row_col]=[np.nan] * len(matrix)
     
-    print(matrix)
     return new_row_col, matrix
 
 
@@ -187,8 +211,6 @@ def embranchement_sucessif(matrix: pd.DataFrame) -> None:
     ------
         None
     """
-    # matrix = pd.read_csv(filename, index_col=0)
-    # matrix = matrix.transpose() # pour avoir le triangle inférieur
     dist_min, row_col = search_min_ligne_index(matrix)
 
     dict_dist = dict()
@@ -201,17 +223,146 @@ def embranchement_sucessif(matrix: pd.DataFrame) -> None:
         dict_dist[row_col] = dist_min
         new_target, matrix = calc_dist(matrix, row_col, dict_dist)
 
-    print(dict_dist)
     return dict_dist
 
 
-def clustal_alignement(filename: str):
-    """_summary_
+def needleman_wunsch_after_UPGMA(seq1: list[str], seq2: str, gap_score: float, protein_sequence: bool) -> tuple[str, str, float]:
+    """Perform pairwise alignment between seq2 and all the sequence from the cluster seq1 to find the optimal alignment between theses sequences.
+    
+        Parameters
+    ----------
+        seq1: list[str]
+            Sequences use in X axis for the alignment.
+        seq2: str
+            Sequence use in Y axis for the alignment.
+        gap_score: float
+            Gap score value to calculate and set a value for each case.
+        protein_sequence: bool
+            Inform the sequence type, to use a appropriate subtitution matrix.
+    Return
+    ------
+        str
+            Aligned sequence of seq1, after the optimal alignment was set.
+        str
+            Aligned sequence of seq2, after the optimal alignment was set.
+        float
+            Score of the optimal alignment between seq1 and seq2.
+    """
+    if protein_sequence:
+        SUB_MATRIX = BLOSSUM_MATRIX
+    else:
+        SUB_MATRIX = MATRICE_AN
+    
+    matrix_NW = np.zeros((len(seq1[0])+1, len(seq2)+1))
+    matrix_backtracking = np.full((len(seq1[0])+1, len(seq2)+1), '', dtype=str)
+
+    #initilize the matrix_score
+    nb_row, nb_col = matrix_NW.shape
+    for i in range(1,nb_row):
+        matrix_NW[i,0] = matrix_NW[i-1, 0] + gap_score
+
+    for j in range(1,nb_col):
+        matrix_NW[0,j] = matrix_NW[0, j-1] + gap_score
+    
+    # print("seq1: ", seq1)
+    # print("seq2: ", seq2)
+    # fill matrix_score
+    for i in range(1, nb_row):
+        for j in range(1, nb_col):
+            diag_case = 0
+            for x in range(len(seq1)):
+                # print(seq1[x][i-1], seq2[j-1])
+                if (seq1[x][i-1] == '_') or  (seq2[j-1] == "_"):
+                    diag_case += gap_score
+                else:
+                    diag_case += BLOSSUM_MATRIX.loc[seq1[x][i-1], seq2[j-1]]
+            diag_case = diag_case / len(seq1)
+            left_case = matrix_NW[i, j-1] + (gap_score)
+            top_case = matrix_NW[i-1, j] + (gap_score)
+            
+            max_value = max(diag_case, left_case, top_case)
+            # print(diag_case, left_case, top_case)
+            if max_value == diag_case:
+                matrix_backtracking[i, j] = "diag"
+            elif max_value == left_case:
+                matrix_backtracking[i, j] = "gauche"
+            else:
+                matrix_backtracking[i, j] = "haut"
+            matrix_NW[i, j] = max_value
+        
+    print(matrix_NW)
+    print(matrix_backtracking)
+    
+    # backtracking
+    i, j = nb_row-1, nb_col-1
+    score = matrix_NW[i, j]
+    if len(seq1) > 1:
+        seq1_align = [""] * len(seq1)
+    else:
+        seq1_align = ""
+    seq2_align = ""
+    
+    while (i>0 or j>0):
+        if matrix_backtracking[i, j] == "d":
+            if len(seq1) > 1:
+                for index_list in range(len(seq1)):
+                    seq1_align[index_list] += seq1[index_list][i-1]
+            else:
+                seq1_align += seq1[0][i-1]
+            seq2_align += seq2[j-1]
+            i -= 1
+            j -= 1
+        elif matrix_backtracking[i, j] == "h" or j<=0:
+            if len(seq1) > 1:
+                for index_list in range(len(seq1)):
+                    seq1_align[index_list] += seq1[index_list][i-1]
+            else:
+                seq1_align += seq1[0][i-1]
+            seq2_align += "_"
+            i -= 1
+        elif matrix_backtracking[i, j] == "g" or i<=0:
+            if len(seq1) > 1:
+                for index_list in range(len(seq1)):
+                    seq1_align[index_list] += "_"
+            else:
+                seq1_align += "_"
+            seq2_align += seq2[j-1]
+            j -= 1
+        else:
+            break
+    
+    # print(seq1_align)
+    if len(seq1) > 1:
+        seq1_align_reverse = [s[::-1] for s in seq1_align]
+    else:
+        seq1_align_reverse = [seq1_align[::-1]]
+    
+    # print(f"{seq1_align_reverse}\n{seq2_align[::-1]}\n{score}")
+    return (seq1_align_reverse, seq2_align[::-1], score)
+
+
+def print_dict(dict_input):
+    for key, value in dict_input.items():
+        print(f"{key}: {value}")
+    print("\n")
+
+
+def clustal_alignement(filename: str, gap_score: float = -8.0, protein_sequence: bool = True) -> None:
+    """Execute the main function to perform the CLUSTAL multiple sequence alignement, with sequences from the input file.
 
     Parameters
     ----------
         filename: str
-            Filepath given with arg.parse
+            Filepath of a FASTA file
+        gap_score: float
+            Gap score value. By default at -8.
+        protein_sequence: bool
+            Inform if sequences from FASTA file are protein or nucleic acids sequence. By default at True.
+    
+    Return
+    ------
+        ...
+        
     """
     dict_pdb_id_seq = dict()
     dict_seq_align = dict()
@@ -219,13 +370,13 @@ def clustal_alignement(filename: str):
     # Retrieve sequences from FASTA file
     extract_sequence_from_fasta(filename, dict_pdb_id_seq)
     
-    # Align each sequence two by two
-    # And collect their aligned sequence and the score of the alignment
+    # Pairwise alignment
+    # And collect their aligned sequence and the score of this optimal alignment
     list_name_seq = list(dict_pdb_id_seq.keys())
     list_seq = list(dict_pdb_id_seq.values())
     for i in range(len(list_seq)):
         for j in range(i + 1, len(list_seq)):            
-            seqi_align, seqj_align, score = needleman_wunsch(list_seq[i], list_seq[j])
+            seqi_align, seqj_align, score = needleman_wunsch(list_seq[i], list_seq[j], gap_score, protein_sequence)
             
             fusion_name = "--".join([list_name_seq[i], list_name_seq[j]])
             dict_seq_align[fusion_name] = {
@@ -236,7 +387,7 @@ def clustal_alignement(filename: str):
                 "score":score,
             }
 
-    # fill the score matrix with the alignment score
+    # Fill the score matrix with the alignment score
     score_matrix = np.full((len(list_name_seq), len(list_name_seq)), np.nan)
     for key, value in dict_seq_align.items():
         name_seq1, name_seq2 = key.split("--")
@@ -246,12 +397,44 @@ def clustal_alignement(filename: str):
         score_matrix[index_seq2,index_seq1] = value["score"]
         
     # Transform score matrix into distance matrix
+    min_value = np.nanmin(score_matrix)
+    max_value = np.nanmax(score_matrix)
     
-        
+    nb_row, nb_col = score_matrix.shape
+    for i in range(0, nb_row):
+        for j in range(0, nb_col):
+            if i != j:
+                score_matrix[i,j] = 1- ((score_matrix[i,j] - min_value) / (max_value - min_value))
+
     # Perform UPGMA method on this distance matrix
     score_matrix = pd.DataFrame(score_matrix, index=list_name_seq, columns=list_name_seq)
     dict_dist = embranchement_sucessif(score_matrix)
-    print(dict_dist)
+    
+    # Performe NW alignment with the order given by UPGMA on all the sequences
+    order_UPGMA = list(dict_dist.keys())[-1] 
+    list_order_UPGMA = [item.strip() for item in order_UPGMA[0].split(",")]
+    list_order_UPGMA.append(order_UPGMA[1])
+    # print("order_UPGMA: ", order_UPGMA)
+    # print("list_order_UPGMA: ", list_order_UPGMA)   
+    
+    # print_dict(dict_pdb_id_seq)
+    # print(list_order_UPGMA, "\n")
+    list_seq1, seq2 = [], ""
+    for i in range(1, len(list_order_UPGMA)):        
+        if len(list_seq1) < 1:
+            # If 
+            for x in list_order_UPGMA[:i]:
+                list_seq1.append(dict_pdb_id_seq[x])
+        else:
+            list_seq1.append(seq2)
+        seq2 = dict_pdb_id_seq[list_order_UPGMA[i]]
+        
+        # Apply NW alignment between a cluster list_seq1 and seq2
+        list_seq1, seq2, score = needleman_wunsch_after_UPGMA(list_seq1, seq2, gap_score, protein_sequence)
+    
+    list_seq1.append(seq2)
+    for i in range(len(list_order_UPGMA)):
+        print(f"{list_order_UPGMA[i]}: {list_seq1[i]}")
 
 
 def test_exist_type_file(filepath: str) -> str:
@@ -282,6 +465,31 @@ def test_exist_type_file(filepath: str) -> str:
     return filepath
 
 
+def check_number(score_value: str) -> float:
+    """Check if the input gap score is a number
+
+    Parameter
+    ---------
+        score_value: str
+            Gap score value
+
+    Raises
+    ------
+        argparse.ArgumentTypeError
+            If the score given in the input is not a number
+
+    Return
+    ------
+        float
+            Value of input into float
+    """
+    try:
+        score_as_float = float(score_value)
+    except argparse.ArgumentTypeError:
+        raise argparse.ArgumentTypeError("Argument should be a number")
+    return score_as_float
+
+
 def parse_arg() -> argparse.Namespace:
     """Parse command-line arguments.
     
@@ -305,11 +513,33 @@ def parse_arg() -> argparse.Namespace:
         help="Filepath of the fasta file to retrieve the sequence",
         required=True,
     )
+    parser.add_argument(
+        "--gap_score", 
+        type=check_number,
+        help="Define a value for the gap score. By default at -8.",
+        default=-8.0,
+    )
+    parser.add_argument(
+        "--protein_sequence", 
+        help="Inform if the sequence type are a protein sequence or a nucleic acids sequence. Set by default at True",
+        default=True,
+        action="store_false",
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_arg()    
-    # extract_sequence_from_fasta(args.input, dict_name_seq)
-    # print(dict_name_seq)
-    clustal_alignement(args.input)
+    
+    # seq1 = "MGSETIKPAGAQQPSALQDRLHQKRPSSRSVPRAFASGGLRIPGWLDPRPQLCSREDVAGLVKHVGVSPGAPRQGTWPSACLSPACLPDHCPSAMALWMRLLPLLALLALWGPDPAAAFVNQHLCGSHLVEALYLVCGERGFFYTPKTRREAEDLQVGQVELGGGPGAGSLQPLALEGSLQKRGIVEQCCTSICSLYQLENYCN"
+    # seq2 = "MGSETIKPVGTQQPSALQDRLHQKRPSSRSVPRAFASDHCPSAMALWMRLLPLLALLALWGPDPAAAFVNQHLCGSHLVEALYLVCGERGFFYTPKTRREAEDLQVGQVELGGGPGAGSLQPLALEGSLQKRGIVEQCCTSICSLYQLENYCN"
+    # seq1_al, seq2_al, score = needleman_wunsch(seq1, seq2)
+    # print(seq1_al)
+    # print(seq2_al)
+    
+    # ajouter option 
+    # - pour dire si c'est prot ou ADN (mat blossom change) ! 
+    clustal_alignement(args.input, 
+                       args.gap_score,
+                       args.protein_sequence)
+    
