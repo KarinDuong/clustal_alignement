@@ -8,12 +8,9 @@ dependencies:
     - numpy
     - pandas
     - biopython
-    - matplotlib
-    - networkx
     # Linters and formateurs
     - pycodestyle
     - pydocstyle
     - pylint
     - black
     - ruff
-    - loguru
