@@ -353,6 +353,7 @@ def clustal_alignement(filename: str, gap_score: float = -8.0, protein_sequence:
         protein_sequence: bool
             Inform if sequences from FASTA file are protein or nucleic acids sequence. By default at True.
     """
+    logger.info("Debut...")
     dict_pdb_id_seq = dict()
     dict_seq_align = dict()
     
@@ -434,7 +435,7 @@ def clustal_alignement(filename: str, gap_score: float = -8.0, protein_sequence:
     
     for i in range(len(list_order_UPGMA)):
         print(f"{list_order_UPGMA[i]}: {list_seq1[i]}")
-    
+    logger.info("Fin...")
 
 def test_exist_type_file(filepath: str) -> str:
     """Check if the given filepath points to an existing structure file (.fasta).
